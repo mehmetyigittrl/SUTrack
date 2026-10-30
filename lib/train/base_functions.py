@@ -3,7 +3,7 @@ from torch.utils.data.distributed import DistributedSampler
 import torch.nn as nn
 
 # datasets related
-from lib.train.dataset import Lasot, Got10k, MSCOCOSeq, ImagenetVID, TrackingNet, Imagenet1k, VastTrack
+from lib.train.dataset import Lasot, LasotCustom, Got10k, MSCOCOSeq, ImagenetVID, TrackingNet, Imagenet1k, VastTrack
 from lib.train.dataset import Lasot_lmdb, Got10k_lmdb, MSCOCOSeq_lmdb, ImagenetVID_lmdb, TrackingNet_lmdb
 from lib.train.dataset import VisEvent, LasHeR, DepthTrack
 from lib.train.dataset import Otb99_lang, Tnl2k, RefCOCOSeq
@@ -39,7 +39,7 @@ def names2datasets(name_list: list, settings, image_loader):
     assert isinstance(name_list, list)
     datasets = []
     for name in name_list:
-        assert name in ["LASOT", "GOT10K_vottrain", "GOT10K_votval", "GOT10K_train_full",
+        assert name in ["LASOT", "LASOT_CUSTOM", "GOT10K_vottrain", "GOT10K_votval", "GOT10K_train_full",
                         "COCO17", "VID", "TRACKINGNET", "IMAGENET1K",
                         "DepthTrack_train", "DepthTrack_val", "LasHeR_all", "LasHeR_train","LasHeR_val", "VisEvent",
                         "REFCOCOG", "TNL2K_train", "OTB99_train","VASTTRACK"]
@@ -55,6 +55,11 @@ def names2datasets(name_list: list, settings, image_loader):
                                       multi_modal_vision=settings.multi_modal_vision,
                                       multi_modal_language=settings.multi_modal_language,
                                       use_nlp=settings.use_nlp['LASOT']))
+        if name == "LASOT_CUSTOM":
+            datasets.append(LasotCustom(settings.env.lasot_custom_dir, split='train', image_loader=image_loader,
+                                        multi_modal_vision=settings.multi_modal_vision,
+                                        multi_modal_language=settings.multi_modal_language,
+                                        use_nlp=settings.use_nlp['LASOT_CUSTOM']))
         if name == "VASTTRACK":
             datasets.append(VastTrack(settings.env.vasttrack_dir, split='train', image_loader=image_loader,
                                       multi_modal_vision=settings.multi_modal_vision,

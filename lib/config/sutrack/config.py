@@ -89,6 +89,7 @@ cfg.DATA.MULTI_MODAL_VISION = True # vision multi-modal
 cfg.DATA.MULTI_MODAL_LANGUAGE = True # language multi-modal
 cfg.DATA.USE_NLP = edict() # using the text of the dataset
 cfg.DATA.USE_NLP.LASOT = False
+cfg.DATA.USE_NLP.LASOT_CUSTOM = False
 cfg.DATA.USE_NLP.GOT10K = False
 cfg.DATA.USE_NLP.COCO = False
 cfg.DATA.USE_NLP.TRACKINGNET = False

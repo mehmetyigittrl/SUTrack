@@ -2,7 +2,10 @@ import torch
 import torch.utils.data.dataloader
 import importlib
 import collections
-from torch._six import string_classes
+try:
+    from torch._six import string_classes
+except ImportError:  # torch >= 1.9 removed torch._six; (str, bytes) is its exact definition
+    string_classes = (str, bytes)
 int_classes = int
 from lib.utils import TensorDict, TensorList
 
@@ -86,6 +89,8 @@ def ltr_collate_stack1(batch):
             # torch.Size([1, 3, 192, 192])
             # out.shape
             # torch.Size([1769472])
+        if out is None:  # main process (num_workers=0): no shared-memory buffer
+            return torch.stack(batch, 1)
         return torch.stack(batch, 1, out=out.resize_(0))
             # out.shape
             # torch.Size([1, 16, 3, 192, 192])

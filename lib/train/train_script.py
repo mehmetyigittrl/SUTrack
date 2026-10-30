@@ -1,4 +1,5 @@
 import os
+import torch
 # loss function related
 from lib.utils.box_ops import giou_loss
 from torch.nn.functional import l1_loss
@@ -15,6 +16,28 @@ from lib.train.actors import SUTrack_Actor
 from lib.utils.focal_loss import FocalLoss
 # for import modules
 import importlib
+
+
+def load_pretrained_tracker(net, path):
+    """Initialize net from a released SUTrack checkpoint (true finetune start).
+
+    Tolerates DDP 'module.' prefixes and checkpoints carrying weights the
+    current model does not have (e.g. the CLIP text encoder when
+    DATA.MULTI_MODAL_LANGUAGE is False). Returns the (missing, unexpected)
+    key lists from torch's non-strict load.
+    """
+    ckpt = torch.load(path, map_location="cpu")
+    if isinstance(ckpt, dict) and isinstance(ckpt.get("model"), dict):
+        state_dict = ckpt["model"]
+    else:
+        state_dict = ckpt
+    state_dict = {(k[7:] if k.startswith("module.") else k): v
+                  for k, v in state_dict.items()}
+    missing, unexpected = net.load_state_dict(state_dict, strict=False)
+    if is_main_process():
+        print("Loaded pretrained tracker weights from %s (missing=%d, unexpected=%d)" %
+              (path, len(missing), len(unexpected)))
+    return missing, unexpected
 
 
 def run(settings):
@@ -55,6 +78,11 @@ def run(settings):
         net = build_sutrack(cfg)
     else:
         raise ValueError("illegal script name")
+
+    # True finetune start: initialize the whole tracker (not just the ITPN
+    # backbone) from a released SUTrack checkpoint. Optional.
+    if cfg.TRAIN.PRETRAINED_PATH:
+        load_pretrained_tracker(net, cfg.TRAIN.PRETRAINED_PATH)
 
     # wrap networks to distributed one
     net.cuda()

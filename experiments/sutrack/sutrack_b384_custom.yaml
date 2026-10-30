@@ -1,0 +1,127 @@
+# Train SUTrack-B384 on a custom LaSOT-layout dataset produced by
+# tools/coco2lasot.py (DATASETS_NAME: LASOT_CUSTOM -> lib/train/dataset/lasot_custom.py,
+# root: env_settings().lasot_custom_dir = <repo>/data/lasot_custom).
+#
+# Compared to sutrack_b384.yaml: single dataset (ratio [1]), smaller epoch
+# (30000 samples), shorter schedule (60 epochs, LR drop at 48). Tune
+# TRAIN.EPOCH / SAMPLE_PER_EPOCH to your dataset size.
+#
+# Weight initialization: by default only the ITPN backbone starts from
+# pretrained/itpn/fast_itpn_base_clipl_e1600.pt (heads are random). For a true
+# finetune from the released SUTrack-B384 tracker, download it (MODEL_ZOO.md)
+# and set TRAIN.PRETRAIN_PATH below to the checkpoint file.
+DATA:
+  MAX_SAMPLE_INTERVAL: 400
+  # LANGUAGE DISABLED: skips building the CLIP text encoder entirely
+  # (lib/models/sutrack/sutrack.py build_sutrack), so CLIP weights are never
+  # loaded. USE_NLP below stays irrelevant (dataset has no language anns).
+  MULTI_MODAL_LANGUAGE: False
+  MULTI_MODAL_VISION: True
+  MEAN:
+  - 0.485
+  - 0.456
+  - 0.406
+  SEARCH:
+    CENTER_JITTER: 3.5
+    FACTOR: 4.0
+    SCALE_JITTER: 0.5
+    SIZE: 384
+    NUMBER: 1
+  STD:
+  - 0.229
+  - 0.224
+  - 0.225
+  TEMPLATE:
+    CENTER_JITTER: 0
+    FACTOR: 2.0
+    SCALE_JITTER: 0
+    SIZE: 192
+    NUMBER: 2
+  TRAIN:
+    DATASETS_NAME:
+    - LASOT_CUSTOM
+    DATASETS_RATIO:
+    - 1
+    SAMPLE_PER_EPOCH: 30000
+  USE_NLP:
+    TNL2K: True
+MODEL:
+  ENCODER:
+    TYPE: fastitpnb
+    STRIDE: 16
+    PRETRAIN_TYPE: 'pretrained/itpn/fast_itpn_base_clipl_e1600.pt' # REQUIRED: backbone init is torch.load'ed at model build (encoder.py); download per README/MODEL_ZOO.
+    PATCHEMBED_INIT: halfcopy
+    DROP_PATH: 0.1
+    TOKEN_TYPE_INDICATE: True
+  # Inactive while DATA.MULTI_MODAL_LANGUAGE is False (no CLIP is built;
+  # this key only selects which CLIP model would be loaded).
+  TEXT_ENCODER:
+    TYPE: ViT-L/14
+  DECODER:
+    TYPE: CENTER
+    NUM_CHANNELS: 256
+    CONV_TYPE: normal
+    XAVIER_INIT: True
+  TASK_DECODER:
+    NUM_CHANNELS: 256
+    FEATURE_TYPE: average
+  TASK_NUM: 5
+  TASK_INDEX:
+    VASTTRACK: 0
+    LASOT: 0
+    TRACKINGNET: 0
+    GOT10K: 0
+    COCO: 0
+    TNL2K: 1
+    DEPTHTRACK: 2
+    LASHER: 3
+    VISEVENT: 4
+TRAIN:
+  # 'normal' (was 'text_frozen'): text_frozen only froze CLIP/BERT params,
+  # which no longer exist with MULTI_MODAL_LANGUAGE False.
+  TYPE: normal
+  ENCODER_MULTIPLIER: 0.1
+  BATCH_SIZE: 32
+  EPOCH: 60
+  GRAD_CLIP_NORM: 0.1
+  LR: 0.0001
+  LR_DROP_EPOCH: 48
+  NUM_WORKER: 10
+  OPTIMIZER: ADAMW
+  PRINT_INTERVAL: 50
+  SCHEDULER:
+    TYPE: step
+    DECAY_RATE: 0.1
+  WEIGHT_DECAY: 0.0001
+  # TASK RECOGNITION OFF: zeroes the task-classification loss weight
+  # (lib/train/train_script.py loss_weight['task_cls']). The tiny task head
+  # stays in the model (always built, needed for loading official SUTrack
+  # checkpoints) but gets no gradient and its output is unused. Keep
+  # MODEL.TASK_NUM/TASK_INDEX as they are - the actor reads TASK_INDEX to
+  # build labels.
+  TASK_CE_WEIGHT: 0.0
+  # True finetune from released SUTrack-B384 weights (loaded by
+  # lib/train/train_script.py load_pretrained_tracker, non-strict: CLIP
+  # weights in the checkpoint are skipped when MULTI_MODAL_LANGUAGE is False).
+  # PRETRAINED_PATH: 'pretrained_networks/SUTrack_B384.pth'
+  PRETRAINED_PATH: null
+TEST:
+  EPOCH: 60
+  SEARCH_FACTOR: 4.0
+  SEARCH_SIZE: 384
+  TEMPLATE_FACTOR: 2.0
+  TEMPLATE_SIZE: 192
+  WINDOW: True
+  NUM_TEMPLATES: 2
+  UPDATE_INTERVALS:
+    DEFAULT: 25
+  UPDATE_THRESHOLD:
+    DEFAULT: 0.70
+  MULTI_MODAL_VISION:
+    DEFAULT: True
+  # No language at inference either.
+  MULTI_MODAL_LANGUAGE:
+    DEFAULT: False
+  USE_NLP:
+    DEFAULT: False
+    TNL2K: True
