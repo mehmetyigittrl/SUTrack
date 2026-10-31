@@ -734,5 +734,45 @@ class TestFinetuneLoader(unittest.TestCase):
         self.assertEqual(str(Path(env.pretrained_networks)), str(REPO_ROOT / "pretrained_networks"))
 
 
+class TestTestPathWiring(unittest.TestCase):
+    """The tracking/test.py entry and test-side env settings must work on any machine."""
+
+    def test_tracking_test_py_runs_in_script_mode(self):
+        # README invokes `python tracking/test.py sutrack <cfg> --dataset ...`;
+        # the sys.path bootstrap used to resolve one level ABOVE the repo root.
+        out = subprocess.run(
+            [sys.executable, "tracking/test.py", "--help"],
+            capture_output=True, text=True, cwd=str(REPO_ROOT))
+        self.assertEqual(out.returncode, 0, msg=out.stderr[-2000:])
+
+    def test_eval_local_paths_are_repo_relative(self):
+        # stale absolute /home/cx paths broke parameters() (FileNotFoundError on
+        # the experiments yaml) and would send test results to a missing tree
+        from lib.test.evaluation.local import local_env_settings
+        s = local_env_settings()
+        self.assertEqual(str(Path(s.prj_dir)), str(REPO_ROOT))
+        self.assertEqual(str(Path(s.save_dir)), str(REPO_ROOT))
+        self.assertTrue(str(Path(s.results_path)).startswith(str(REPO_ROOT)))
+        for attr in ("network_path", "result_plot_path", "segmentation_path",
+                     "lasot_path", "lasot_lmdb_path", "lasot_extension_subset_path",
+                     "got10k_path", "got10k_lmdb_path", "otb_path", "otblang_path",
+                     "uav_path", "nfs_path", "tc128_path", "tnl2k_path",
+                     "trackingnet_path", "vot_path"):
+            self.assertTrue(str(getattr(s, attr)).startswith(str(REPO_ROOT)),
+                            "%s=%r not under repo root" % (attr, getattr(s, attr)))
+
+    def test_parameters_resolves_custom_yaml_and_checkpoint(self):
+        # parameters(yaml_name) reads experiments/sutrack/<name>.yaml via
+        # env_settings().prj_dir and builds the checkpoint path from save_dir
+        import contextlib
+        import io
+        from lib.test.parameter.sutrack import parameters
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):  # parameters() prints the cfg
+            p = parameters("sutrack_b384_custom")
+        self.assertTrue(str(p.checkpoint).startswith(str(REPO_ROOT)))
+        self.assertTrue(p.checkpoint.endswith(".pth.tar"))
+
+
 if __name__ == "__main__":
     unittest.main()
